@@ -83,6 +83,31 @@ album_count = db.execute("SELECT COUNT(*) FROM remote.Album").first.first
 puts "Found #{album_count} albums in the remote Chinook database."
 ```
 
+### 3. Usage with SQLite CLI
+
+**Note**: Extension loading requires SQLite to be compiled with extension support. Many system SQLite builds disable this for security (compiled with `OMIT_LOAD_EXTENSION`). If `.load` is unavailable, use the Ruby examples above instead.
+
+For SQLite builds with extension support (use Homebrew's sqlite3 on macOS):
+
+```bash
+# macOS: Use Homebrew's sqlite3 which supports extensions
+/opt/homebrew/bin/sqlite3 -cmd ".load $(ruby -r sqlite_web_vfs -e 'puts SQLiteWebVFS::Loader.built_extension_path')" -cmd "ATTACH DATABASE 'file:/__web__?vfs=web&mode=ro&immutable=1&web_url=https%3A//github.com/lerocha/chinook-database/raw/master/ChinookDatabase/DataSources/Chinook_Sqlite.sqlite' AS remote;" ":memory:"
+
+# Or with PATH updated to use Homebrew's sqlite3:
+sqlite3 -cmd ".load $(ruby -r sqlite_web_vfs -e 'puts SQLiteWebVFS::Loader.built_extension_path')" -cmd "ATTACH DATABASE 'file:/__web__?vfs=web&mode=ro&immutable=1&web_url=https%3A//github.com/lerocha/chinook-database/raw/master/ChinookDatabase/DataSources/Chinook_Sqlite.sqlite' AS remote;" ":memory:"
+```
+
+Then query the remote database:
+```sql
+SELECT COUNT(*) FROM remote.Album;
+```
+
+To check if your SQLite supports extensions:
+```bash
+sqlite3 ":memory:" "PRAGMA compile_options;" | grep -i load
+```
+If you see `OMIT_LOAD_EXTENSION`, use the Ruby API instead.
+
 ## Development
 - Build: `gem build` then install the gem.
 - Tests: `bundle exec rspec` (CI runs on Amazon Linux 2023 and macOS).
