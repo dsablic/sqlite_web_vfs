@@ -42,10 +42,7 @@ class Logger : public std::ostream {
     }
 
     void DetectLevel(const char *zName = nullptr, const int DEFAULT_LEVEL = 0) {
-        int log_level = DEFAULT_LEVEL;
-#ifndef NDEBUG
-        log_level = 5;
-#endif
+        int log_level = DEFAULT_LEVEL; // default from caller (we keep it even in debug builds)
 
         const char *env_log = getenv("SQLITE_VFS_LOG");
         bool env_ok = false;

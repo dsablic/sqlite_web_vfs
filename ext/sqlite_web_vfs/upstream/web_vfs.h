@@ -554,7 +554,7 @@ class File : public SQLiteVFS::File {
           curlpool_(std::move(curlpool)), dbi_(std::move(dbi)), threadpool_(4, 16),
           small_KiB_(small_KiB) {
         methods_.iVersion = 1;
-        log_.DetectLevel(zName, 2);
+        log_.DetectLevel(zName, 0);
     }
 };
 
@@ -576,7 +576,7 @@ class VFS : public SQLiteVFS::Wrapper {
             last_error_ = "web access is read-only";
             return SQLITE_CANTOPEN;
         }
-        SQLiteVFS::Logger log_(zName, 2); // intentionally shadow this->log_
+        SQLiteVFS::Logger log_(zName, 0); // intentionally shadow this->log_
         bool insecure = sqlite3_uri_int64(zName, "web_insecure", 0) == 1;
         const char *env_insecure = getenv("SQLITE_WEB_INSECURE");
         if (env_insecure && *env_insecure) {
