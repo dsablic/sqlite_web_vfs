@@ -16,7 +16,7 @@ module SQLiteWebVFS
           return p if File.file?(p)
         end
         # Ruby might place it in a versioned directory under lp/sqlite_web_vfs
-        Dir[File.join(lp, 'sqlite_web_vfs', "sqlite_web_vfs.{so,bundle,dll}")].each do |p|
+        Dir[File.join(lp, 'sqlite_web_vfs', 'sqlite_web_vfs.{so,bundle,dll}')].each do |p|
           return p if File.file?(p)
         end
       end
@@ -41,22 +41,25 @@ module SQLiteWebVFS
         MSG
       end
 
+      # Determine loaded extension path, if any
+      dlex = %w[so bundle dll]
+      so = $LOADED_FEATURES.find do |f|
+        dlex.any? { |ext| f.end_with?("/sqlite_web_vfs/sqlite_web_vfs.#{ext}") }
+      end
+
       # Ensure the current connection loads the extension too (auto-extension affects future opens)
       if db
-        so = $LOADED_FEATURES.find { |f| f.end_with?('/sqlite_web_vfs/sqlite_web_vfs.so') || f.end_with?('/sqlite_web_vfs/sqlite_web_vfs.bundle') || f.end_with?('sqlite_web_vfs/sqlite_web_vfs.dll') }
-        if db.respond_to?(:enable_load_extension)
-          db.enable_load_extension(true)
-        end
+        db.enable_load_extension(true) if db.respond_to?(:enable_load_extension)
         if db.respond_to?(:load_extension)
           db.load_extension(so) if so
         elsif db.respond_to?(:api) && db.api.respond_to?(:load_extension)
           if so
             rc = db.api.load_extension(db.handle, so, nil, nil)
-            raise_load_error("sqlite3-ffi load_extension failed with code #{rc}") unless rc == 0
+            raise_load_error("sqlite3-ffi load_extension failed with code #{rc}") unless rc.zero?
           end
         end
       end
-      true
+      so
     end
 
     def raise_load_error(msg)

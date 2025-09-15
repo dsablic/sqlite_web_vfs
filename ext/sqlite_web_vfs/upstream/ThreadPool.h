@@ -21,8 +21,8 @@ class ThreadPool {
         // sequence number used to ensure serial stages run in the correct order
         unsigned long long seqno = ULLONG_MAX;
         void *x = nullptr;
-        std::function<void *(void *) noexcept> par;
-        std::function<void(void *) noexcept> ser;
+        std::function<void *(void *)> par;
+        std::function<void(void *)> ser;
     };
     std::function<bool(const Job &, const Job &)> job_greater_ =
         [](const Job &lhs, const Job &rhs) { return lhs.seqno > rhs.seqno; };
@@ -103,8 +103,8 @@ class ThreadPool {
     size_t MaxJobs() const noexcept { return max_jobs_; }
 
     // Enqueue ser(par(x)) for background processing as described. The functions must not throw.
-    void Enqueue(void *x, std::function<void *(void *) noexcept> par,
-                 std::function<void(void *) noexcept> ser) {
+    void Enqueue(void *x, std::function<void *(void *)> par,
+                 std::function<void(void *)> ser) {
         if (seqno_next_ == ULLONG_MAX) { // pedantic
             Barrier();
             seqno_next_ = 0;
@@ -149,8 +149,8 @@ class ThreadPoolWithEnqueueFast : public ThreadPool {
     struct EnqueueFastJob {
         bool shutdown = false;
         void *x = nullptr;
-        std::function<void *(void *) noexcept> par;
-        std::function<void(void *) noexcept> ser;
+        std::function<void *(void *)> par;
+        std::function<void(void *)> ser;
     };
 
     moodycamel::BlockingReaderWriterQueue<EnqueueFastJob> fast_queue_;
@@ -182,8 +182,8 @@ class ThreadPoolWithEnqueueFast : public ThreadPool {
         }
     }
 
-    void EnqueueFast(void *x, std::function<void *(void *) noexcept> par,
-                     std::function<void(void *) noexcept> ser) {
+    void EnqueueFast(void *x, std::function<void *(void *)> par,
+                     std::function<void(void *)> ser) {
         EnqueueFastJob job;
         job.x = x;
         job.par = par;

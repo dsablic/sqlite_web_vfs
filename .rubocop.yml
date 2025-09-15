@@ -1,0 +1,61 @@
+plugins:
+  - rubocop-rake
+  - rubocop-rspec
+
+AllCops:
+  TargetRubyVersion: 3.2
+  NewCops: enable
+
+Layout/EmptyLineAfterGuardClause:
+  Enabled: false
+
+Layout/MultilineMethodCallIndentation:
+  Enabled: false
+
+Layout/LineLength:
+  Enabled: false
+
+Naming/MethodParameterName:
+  Enabled: false
+
+Naming/VariableNumber:
+  Enabled: false
+
+Style/PercentLiteralDelimiters:
+  Enabled: false
+
+Style/RegexpLiteral:
+  Enabled: false
+
+Style/RescueModifier:
+  Enabled: false
+
+Style/Documentation:
+  Enabled: false
+
+Style/RescueStandardError:
+  Enabled: false
+
+Style/SingleArgumentDig:
+  Enabled: false
+
+Style/FormatStringToken:
+  Enabled: false
+
+Lint/SuppressedException:
+  Enabled: false
+
+Metrics:
+  Enabled: false
+
+RSpec/MultipleExpectations:
+  Enabled: false
+
+RSpec/ExampleLength:
+  Enabled: false
+
+RSpec/RepeatedExample:
+  Enabled: false
+
+RSpec/RepeatedDescription:
+  Enabled: false

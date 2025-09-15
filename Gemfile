@@ -1,14 +1,17 @@
 # frozen_string_literal: true
 
-source "https://rubygems.org"
+source 'https://rubygems.org'
 
-ruby ">= 3.3"
+gem 'bundler-audit'
+gem 'rake'
+gem 'rspec'
 
-# Specify your gem's dependencies in sqlite_web_vfs.gemspec
-gemspec
-
-group :development, :test do
-  gem "bundler-audit", "~> 0.9.0"
-  gem "rake", "~> 13.0"
-  gem "rspec", "~> 3.0"
+group :development do
+  gem 'rubocop'
+  gem 'rubocop-rake'
+  gem 'rubocop-rspec'
+  gem 'sqlite3'
+  gem 'sqlite3-ffi'
 end
+
+gemspec

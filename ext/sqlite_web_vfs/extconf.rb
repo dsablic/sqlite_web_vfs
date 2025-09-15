@@ -1,8 +1,12 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
 require 'mkmf'
 require 'fileutils'
-
-extension_name = 'sqlite_web_vfs'
-$srcs = []
+require 'shellwords'
+require 'net/http'
+require 'uri'
+# NOTE: mkmf will compile all .c/.cc files in this directory.
 
 # Build settings
 dir_config('sqlite3')
@@ -16,33 +20,29 @@ def linux?
 end
 
 # Allow overriding via env or flags
-sqlite_prefix = with_config('sqlite3-dir') || ENV['SQLITE3_DIR']
+sqlite_prefix = with_config('sqlite3-dir') || ENV.fetch('SQLITE3_DIR', nil)
 if sqlite_prefix
   inc = File.join(sqlite_prefix, 'include')
   lib = File.join(sqlite_prefix, 'lib')
-  $INCFLAGS << " -I#{inc}"
-  $LDFLAGS  << " -L#{lib}"
-  ENV['PKG_CONFIG_PATH'] = [File.join(lib, 'pkgconfig'), ENV['PKG_CONFIG_PATH']].compact.join(':')
+  dir_config('sqlite3', inc, lib)
+  ENV['PKG_CONFIG_PATH'] = [File.join(lib, 'pkgconfig'), ENV.fetch('PKG_CONFIG_PATH', nil)].compact.join(':')
 end
 
 # HTTP implementation uses lazy-loaded libcurl when HTTP_LAZYCURL is defined.
 # This avoids requiring libcurl at link time; on Linux we still need -ldl.
-$CPPFLAGS = [ENV['CPPFLAGS'], '-DHTTP_LAZYCURL'].compact.join(' ')
-$CXXFLAGS = [ENV['CXXFLAGS'], '-std=c++11', '-O2'].compact.join(' ')
+# Set required flags via mkmf CONFIG instead of globals
+CONFIG['CPPFLAGS'] = [CONFIG['CPPFLAGS'], '-DHTTP_LAZYCURL'].compact.join(' ')
+CONFIG['CXXFLAGS'] = [CONFIG['CXXFLAGS'], '-std=c++17', '-O2', '-DHTTP_LAZYCURL'].compact.join(' ')
 
-if linux?
-  have_library('dl')
-  $libs = append_library($libs, 'dl')
-  $libs = append_library($libs, 'pthread')
-end
+have_library('dl') if linux?
+have_library('pthread') if linux?
 
 bundled = ENV['WEBVFS_FORCE_BUNDLED'] == '1'
 
 if bundled
-  warn '\n==> WEBVFS_FORCE_BUNDLED=1 set: building against bundled SQLite amalgamation.\n' \
-       '    This is for advanced users and may not interoperate with other SQLite users in-process.'
+  warn "\n==> WEBVFS_FORCE_BUNDLED=1 set: building against bundled SQLite amalgamation.\n    " \
+       'This is for advanced users and may not interoperate with other SQLite users in-process.'
   # Download the amalgamation
-  require 'open-uri'
   require 'tmpdir'
   require 'zlib'
   require 'rubygems/package'
@@ -54,7 +54,15 @@ if bundled
   FileUtils.mkdir_p(dest_dir)
   zip_path = File.join(dest_dir, "#{base}.zip")
   begin
-    URI.open(url, 'rb') { |io| File.binwrite(zip_path, io.read) }
+    uri = URI.parse(url)
+    Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https') do |http|
+      http.request(Net::HTTP::Get.new(uri)) do |response|
+        abort "Failed to download SQLite amalgamation from #{url}: #{response.code} #{response.message}" unless response.is_a?(Net::HTTPSuccess)
+        File.open(zip_path, 'wb') do |file|
+          response.read_body { |chunk| file.write(chunk) }
+        end
+      end
+    end
     # unzip minimal without external tools
     require 'zip'
   rescue LoadError
@@ -69,24 +77,22 @@ if bundled
       end
     end
   else
-    unless system("unzip -o #{Shellwords.escape(zip_path)} -d #{Shellwords.escape(dest_dir)}")
-      abort "Failed to extract SQLite amalgamation from #{zip_path}. Install 'rubyzip' or 'unzip'."
-    end
+    abort "Failed to extract SQLite amalgamation from #{zip_path}. Install 'rubyzip' or 'unzip'." unless system("unzip -o #{Shellwords.escape(zip_path)} -d #{Shellwords.escape(dest_dir)}")
     %w[sqlite3.c sqlite3.h sqlite3ext.h].each do |f|
       src = File.join(dest_dir, base, f)
       FileUtils.cp(src, File.join(dest_dir, f))
     end
   end
-  $INCFLAGS << " -I#{dest_dir}"
-  # Compile amalgamation directly into the extension to provide sqlite3 symbols
-  $srcs << File.join('sqlite-amalgamation', 'sqlite3.c')
+  # NOTE: Generate a tiny wrapper C file so mkmf picks up the amalgamation without globals
+  wrap_amalg = File.join(__dir__, '_wrap_sqlite3_amalgamation.c')
+  File.write(wrap_amalg, "#include \"sqlite-amalgamation/sqlite3.c\"\n") unless File.exist?(wrap_amalg)
   # No need to link to system sqlite3 now
 else
   # Try pkg-config after probing Homebrew keg
   begin
     brew_sqlite = `brew --prefix sqlite 2>/dev/null`.strip
-    if !brew_sqlite.to_s.empty?
-      ENV['PKG_CONFIG_PATH'] = [File.join(brew_sqlite, 'lib/pkgconfig'), ENV['PKG_CONFIG_PATH']].compact.join(':')
+    unless brew_sqlite.to_s.empty?
+      ENV['PKG_CONFIG_PATH'] = [File.join(brew_sqlite, 'lib/pkgconfig'), ENV.fetch('PKG_CONFIG_PATH', nil)].compact.join(':')
       pkg_config('sqlite3') || true
     end
   rescue
@@ -97,10 +103,9 @@ else
   if !sqlite_ok && darwin?
     begin
       brew_sqlite = `brew --prefix sqlite 2>/dev/null`.strip
-      if !brew_sqlite.to_s.empty?
-        $INCFLAGS << " -I#{brew_sqlite}/include"
-        $LDFLAGS  << " -L#{brew_sqlite}/lib"
-        ENV['PKG_CONFIG_PATH'] = [File.join(brew_sqlite, 'lib/pkgconfig'), ENV['PKG_CONFIG_PATH']].compact.join(':')
+      unless brew_sqlite.to_s.empty?
+        dir_config('sqlite3', File.join(brew_sqlite, 'include'), File.join(brew_sqlite, 'lib'))
+        ENV['PKG_CONFIG_PATH'] = [File.join(brew_sqlite, 'lib/pkgconfig'), ENV.fetch('PKG_CONFIG_PATH', nil)].compact.join(':')
         pkg_config('sqlite3') || true
         sqlite_ok = have_header('sqlite3.h') && have_library('sqlite3', 'sqlite3_libversion_number')
       end
@@ -108,22 +113,22 @@ else
     end
   end
   unless sqlite_ok
-    msg = <<~EOS
-      
+    msg = <<~SQLITE_HELP
+
       Could not find SQLite3 development headers and library.
-      
+
       Install SQLite and retry:
         - macOS (Homebrew):
             brew install sqlite
         - Amazon Linux 2023:
             sudo dnf install sqlite-devel
-      
+
       Or specify a custom path:
         gem install sqlite_web_vfs -- --with-sqlite3-dir=/path/to/prefix
-      
+
       To force building with a bundled SQLite amalgamation (advanced):
         WEBVFS_FORCE_BUNDLED=1 gem install sqlite_web_vfs
-    EOS
+    SQLITE_HELP
     abort msg
   end
 end
@@ -133,10 +138,9 @@ curl_ok = have_header('curl/curl.h')
 if !curl_ok && darwin?
   begin
     brew_curl = `brew --prefix curl 2>/dev/null`.strip
-    if !brew_curl.to_s.empty?
-      $INCFLAGS << " -I#{brew_curl}/include"
-      $LDFLAGS  << " -L#{brew_curl}/lib"
-      ENV['PKG_CONFIG_PATH'] = [File.join(brew_curl, 'lib/pkgconfig'), ENV['PKG_CONFIG_PATH']].compact.join(':')
+    unless brew_curl.to_s.empty?
+      dir_config('curl', File.join(brew_curl, 'include'), File.join(brew_curl, 'lib'))
+      ENV['PKG_CONFIG_PATH'] = [File.join(brew_curl, 'lib/pkgconfig'), ENV.fetch('PKG_CONFIG_PATH', nil)].compact.join(':')
       pkg_config('libcurl') || true
       curl_ok = have_header('curl/curl.h')
     end
@@ -144,30 +148,30 @@ if !curl_ok && darwin?
   end
 end
 unless curl_ok
-  msg = <<~EOS
-    
+  msg = <<~CURL_HELP
+
     Could not find libcurl development headers (curl/curl.h).
-    
+
     Install libcurl and retry:
       - macOS (Homebrew):
           brew install curl
       - Amazon Linux 2023:
           sudo dnf install libcurl-devel
-  EOS
+  CURL_HELP
   abort msg
 end
 
+# On Linux, also link against libcurl to satisfy symbol resolution when loaders enforce RTLD_NOW.
+have_library('curl', 'curl_easy_perform')
+
 # Sources: C shim + vendored upstream C++ implementation
-upstream_dir = File.expand_path('upstream', __dir__)
-$INCFLAGS << " -I#{upstream_dir}"
+# NOTE: Generate a tiny wrapper to compile the upstream C++ file from this dir
+wrap_web_vfs = File.join(__dir__, '_wrap_web_vfs.cc')
+File.write(wrap_web_vfs, "#include \"upstream/web_vfs.cc\"\n") unless File.exist?(wrap_web_vfs)
 
-$srcs += [
-  File.join('shim.c'),
-  File.join('upstream', 'web_vfs.cc')
-]
-
-# Let mkmf know we have C++ sources
+# Ensure a C++ compiler is set and upstream headers are on include path
 CONFIG['CXX'] ||= with_config('CXX', ENV['CXX'] || 'c++')
-$objs = $srcs.map { |s| s.sub(/\.[^.]+\z/, '.o') }
+upstream_dir = File.expand_path('upstream', __dir__)
+dir_config('upstream_headers', upstream_dir, nil)
 
 create_makefile('sqlite_web_vfs/sqlite_web_vfs')
