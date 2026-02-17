@@ -18,15 +18,16 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
-          bundler-cache: true
       - name: Install system dependencies
         run: brew install sqlite curl
+      - name: Install test dependencies
+        run: gem install --no-document rspec sqlite3 sqlite3-ffi
       - name: Build and install gem
         run: |
           gem build sqlite_web_vfs.gemspec
           gem install --no-document ./sqlite_web_vfs-*.gem
       - name: Run integration tests
-        run: bundle exec rspec -fd spec/integration
+        run: rspec -fd spec/integration
 
   test-linux:
     runs-on: ubuntu-latest
