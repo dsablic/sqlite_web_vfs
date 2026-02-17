@@ -5,7 +5,7 @@ require_relative '../spec_helper'
 require 'sqlite_web_vfs'
 
 RSpec.describe SQLiteWebVFS do
-  let(:chinook_url) { 'https://github.com/lerocha/chinook-database/raw/master/ChinookDatabase/DataSources/Chinook_Sqlite.sqlite' }
+  let(:chinook_url) { ENV['CHINOOK_URL'] || 'https://github.com/lerocha/chinook-database/raw/master/ChinookDatabase/DataSources/Chinook_Sqlite.sqlite' }
   let(:encoded_url) { URI.encode_www_form_component(chinook_url) }
   let(:web_uri)     { "file:/__web__?vfs=web&mode=ro&immutable=1&web_url=#{encoded_url}" }
 

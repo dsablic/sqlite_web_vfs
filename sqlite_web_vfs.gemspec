@@ -13,7 +13,9 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = '>= 3.2.0'
   spec.license = 'BSD-3-Clause' # Upstream BSD-3-Clause; this gem code can be MIT/BSD
 
-  spec.files = Dir.glob('{lib,ext,examples,spec}/**/*', File::FNM_DOTMATCH).select { |f| File.file?(f) } + [
+  spec.files = Dir.glob('{lib,ext,examples,spec}/**/*', File::FNM_DOTMATCH)
+                   .select { |f| File.file?(f) }
+                   .reject { |f| f.match?(/\.(o|so|bundle|dylib|log)$/) || f.end_with?('/Makefile') } + [
     'README.md',
     'LICENSE-3RD-PARTY.md'
   ]
