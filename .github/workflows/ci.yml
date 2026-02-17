@@ -75,6 +75,8 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
-      - name: Build gem
-        run: gem build sqlite_web_vfs.gemspec
-      - uses: rubygems/release-gem@v1
+      - uses: rubygems/configure-rubygems-credentials@v1.0.0
+      - name: Build and push gem
+        run: |
+          gem build sqlite_web_vfs.gemspec
+          gem push sqlite_web_vfs-*.gem
