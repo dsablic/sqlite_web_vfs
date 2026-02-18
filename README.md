@@ -1,5 +1,10 @@
 # sqlite_web_vfs (Ruby gem)
 
+[![CI](https://github.com/dsablic/sqlite_web_vfs/actions/workflows/ci.yml/badge.svg)](https://github.com/dsablic/sqlite_web_vfs/actions/workflows/ci.yml)
+[![Gem Version](https://badge.fury.io/rb/sqlite_web_vfs.svg)](https://badge.fury.io/rb/sqlite_web_vfs)
+[![License](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE-3RD-PARTY.md)
+[![Ruby](https://img.shields.io/badge/ruby-%3E%3D%203.2-red.svg)](https://www.ruby-lang.org/)
+
 This gem builds and loads the HTTP VFS from mlin/sqlite_web_vfs as a Ruby native extension (no CMake), and exposes a small loader helper to use it from both `sqlite3` and `sqlite3-ffi`.
 
 Note: This gem includes code from mlin/sqlite_web_vfs, used under its original license.
